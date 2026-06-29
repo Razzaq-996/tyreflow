@@ -1,11 +1,5 @@
-import { useState } from "react"
-
-const initialInvoices = [
-  { id: "INV001", customer: "Ravi Kumar", phone: "9848012345", items: [{ name: "MRF ZLX 185/65 R15", qty: 2, price: 4200 }], date: "2024-06-20", status: "Paid" },
-  { id: "INV002", customer: "Suresh Babu", phone: "9676543210", items: [{ name: "Apollo Alnac 4G 195/55 R16", qty: 4, price: 4800 }], date: "2024-06-18", status: "Pending" },
-  { id: "INV003", customer: "Nagaraju", phone: "9912345678", items: [{ name: "CEAT Milaze X3 175/70 R13", qty: 2, price: 3900 }, { name: "Retreading Charge", qty: 1, price: 800 }], date: "2024-06-15", status: "Paid" },
-  { id: "INV004", customer: "Venkat Rao", phone: "9700123456", items: [{ name: "JK Vectra 205/65 R15", qty: 4, price: 5100 }], date: "2024-06-10", status: "Pending" },
-]
+import { useState, useEffect } from "react"
+import api from "../utils/api"
 
 function calcTotal(items) {
   return items.reduce((sum, item) => sum + item.qty * item.price, 0)
@@ -16,11 +10,27 @@ function calcGST(total) {
 }
 
 function Billing() {
-  const [invoices, setInvoices] = useState(initialInvoices)
+  const [invoices, setInvoices] = useState([])
   const [selected, setSelected] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ customer: "", phone: "" })
   const [items, setItems] = useState([{ name: "", qty: 1, price: 0 }])
+
+  useEffect(() => {
+    fetchInvoices()
+  }, [])
+
+  async function fetchInvoices() {
+    try {
+      const res = await api.get("/billing")
+      setInvoices(res.data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   function handleAddItem() {
     setItems([...items, { name: "", qty: 1, price: 0 }])
@@ -37,31 +47,31 @@ function Billing() {
     setItems(items.filter((_, i) => i !== index))
   }
 
-  function handleCreateInvoice() {
+  async function handleCreateInvoice() {
     if (!form.customer || items.length === 0) return
-    const newInvoice = {
-      id: `INV00${invoices.length + 1}`,
-      customer: form.customer,
-      phone: form.phone,
-      items: items,
-      date: new Date().toISOString().split("T")[0],
-      status: "Pending"
+    try {
+      const res = await api.post("/billing", { ...form, items })
+      setInvoices([res.data, ...invoices])
+      setForm({ customer: "", phone: "" })
+      setItems([{ name: "", qty: 1, price: 0 }])
+      setShowForm(false)
+    } catch (error) {
+      console.error(error)
     }
-    setInvoices([...invoices, newInvoice])
-    setForm({ customer: "", phone: "" })
-    setItems([{ name: "", qty: 1, price: 0 }])
-    setShowForm(false)
   }
 
-  function handleMarkPaid(id) {
-    setInvoices(invoices.map((inv) => inv.id === id ? { ...inv, status: "Paid" } : inv))
-    setSelected((prev) => prev && prev.id === id ? { ...prev, status: "Paid" } : prev)
+  async function handleMarkPaid(id) {
+    try {
+      const res = await api.put(`/billing/${id}`, { status: "Paid" })
+      setInvoices(invoices.map((inv) => inv._id === id ? res.data : inv))
+      setSelected((prev) => prev && prev._id === id ? res.data : prev)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Billing</h1>
@@ -75,11 +85,9 @@ function Billing() {
         </button>
       </div>
 
-      {/* New Invoice Form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
           <h2 className="text-base font-semibold text-gray-700">New Invoice</h2>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-gray-500">Customer Name</label>
@@ -100,8 +108,6 @@ function Billing() {
               />
             </div>
           </div>
-
-          {/* Items */}
           <div>
             <p className="text-xs text-gray-500 mb-2">Items</p>
             <div className="space-y-2">
@@ -127,110 +133,80 @@ function Billing() {
                     value={item.price}
                     onChange={(e) => handleItemChange(index, "price", e.target.value)}
                   />
-                  <button
-                    onClick={() => handleRemoveItem(index)}
-                    className="text-red-400 hover:text-red-600 text-lg font-bold"
-                  >
-                    ✕
-                  </button>
+                  <button onClick={() => handleRemoveItem(index)} className="text-red-400 hover:text-red-600 text-lg font-bold">✕</button>
                 </div>
               ))}
             </div>
-            <button
-              onClick={handleAddItem}
-              className="mt-2 text-blue-600 text-sm font-medium hover:underline"
-            >
-              + Add Item
-            </button>
+            <button onClick={handleAddItem} className="mt-2 text-blue-600 text-sm font-medium hover:underline">+ Add Item</button>
           </div>
-
           <div className="flex gap-3">
-            <button
-              onClick={handleCreateInvoice}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-            >
-              Create Invoice
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200"
-            >
-              Cancel
-            </button>
+            <button onClick={handleCreateInvoice} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Create Invoice</button>
+            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
           </div>
         </div>
       )}
 
-      {/* Invoice List + Detail */}
       <div className="flex gap-4">
-
-        {/* Invoice Table */}
         <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-left">
-              <tr>
-                <th className="px-4 py-3">Invoice ID</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {invoices.map((inv) => {
-                const subtotal = calcTotal(inv.items)
-                const gst = calcGST(subtotal)
-                return (
-                  <tr key={inv.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-700">{inv.id}</td>
-                    <td className="px-4 py-3 text-gray-600">{inv.customer}</td>
-                    <td className="px-4 py-3 text-gray-600">{inv.date}</td>
-                    <td className="px-4 py-3 text-gray-600">₹{(subtotal + gst).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${inv.status === "Paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => setSelected(inv)}
-                        className="text-blue-600 text-xs font-medium hover:underline"
-                      >
-                        View
-                      </button>
-                    </td>
+          {loading ? (
+            <p className="text-center py-10 text-gray-400">Loading...</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-left">
+                <tr>
+                  <th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {invoices.map((inv) => {
+                  const subtotal = calcTotal(inv.items)
+                  const gst = calcGST(subtotal)
+                  return (
+                    <tr key={inv._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-700">{inv.customer}</td>
+                      <td className="px-4 py-3 text-gray-600">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-gray-600">₹{(subtotal + gst).toLocaleString()}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${inv.status === "Paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => setSelected(inv)} className="text-blue-600 text-xs font-medium hover:underline">View</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {invoices.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-gray-400">No invoices found</td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {/* Invoice Detail */}
         {selected && (
           <div className="w-80 bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-700">{selected.id}</h2>
+              <h2 className="text-base font-semibold text-gray-700">{selected.customer}</h2>
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
             </div>
-
             <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Customer</span>
-                <span className="font-medium text-gray-800">{selected.customer}</span>
-              </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Phone</span>
                 <span className="text-gray-800">{selected.phone}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Date</span>
-                <span className="text-gray-800">{selected.date}</span>
+                <span className="text-gray-800">{new Date(selected.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
-
-            {/* Items Breakdown */}
             <div className="border-t border-gray-100 pt-3">
               <p className="text-xs text-gray-500 mb-2">Items</p>
               <div className="space-y-2">
@@ -242,8 +218,6 @@ function Billing() {
                 ))}
               </div>
             </div>
-
-            {/* Totals */}
             <div className="border-t border-gray-100 pt-3 space-y-1 text-sm">
               <div className="flex justify-between text-gray-500">
                 <span>Subtotal</span>
@@ -258,13 +232,8 @@ function Billing() {
                 <span>₹{(calcTotal(selected.items) + calcGST(calcTotal(selected.items))).toLocaleString()}</span>
               </div>
             </div>
-
-            {/* Mark Paid */}
             {selected.status === "Pending" && (
-              <button
-                onClick={() => handleMarkPaid(selected.id)}
-                className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700"
-              >
+              <button onClick={() => handleMarkPaid(selected._id)} className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700">
                 Mark as Paid
               </button>
             )}

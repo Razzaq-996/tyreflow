@@ -1,48 +1,59 @@
-import { useState } from "react"
-
-const initialCustomers = [
-  { id: 1, name: "Ravi Kumar", phone: "9848012345", vehicle: "Honda City", tyresBought: 4, lastVisit: "2024-06-10" },
-  { id: 2, name: "Suresh Babu", phone: "9676543210", vehicle: "Maruti Swift", tyresBought: 2, lastVisit: "2024-06-15" },
-  { id: 3, name: "Nagaraju", phone: "9912345678", vehicle: "Hyundai i20", tyresBought: 6, lastVisit: "2024-05-28" },
-  { id: 4, name: "Venkat Rao", phone: "9700123456", vehicle: "Toyota Innova", tyresBought: 8, lastVisit: "2024-06-01" },
-  { id: 5, name: "Ramesh Reddy", phone: "9848098765", vehicle: "Tata Nexon", tyresBought: 4, lastVisit: "2024-06-20" },
-  { id: 6, name: "Prasad", phone: "9550012345", vehicle: "Mahindra Scorpio", tyresBought: 10, lastVisit: "2024-04-15" },
-]
+import { useState, useEffect } from "react"
+import api from "../utils/api"
 
 function Customers() {
+  const [customers, setCustomers] = useState([])
   const [search, setSearch] = useState("")
-  const [customers, setCustomers] = useState(initialCustomers)
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState({
-    name: "", phone: "", vehicle: ""
-  })
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ name: "", phone: "", vehicle: "" })
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  async function fetchCustomers() {
+    try {
+      const res = await api.get("/customers")
+      setCustomers(res.data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleAdd() {
+    if (!form.name || !form.phone) return
+    try {
+      const res = await api.post("/customers", form)
+      setCustomers([res.data, ...customers])
+      setForm({ name: "", phone: "", vehicle: "" })
+      setShowForm(false)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await api.delete(`/customers/${id}`)
+      setCustomers(customers.filter((c) => c._id !== id))
+      setSelected(null)
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   const filtered = customers.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.phone.includes(search) ||
-    c.vehicle.toLowerCase().includes(search.toLowerCase())
+    c.vehicle?.toLowerCase().includes(search.toLowerCase())
   )
-
-  function handleAdd() {
-    if (!form.name || !form.phone) return
-    const newCustomer = {
-      id: customers.length + 1,
-      name: form.name,
-      phone: form.phone,
-      vehicle: form.vehicle,
-      tyresBought: 0,
-      lastVisit: new Date().toISOString().split("T")[0]
-    }
-    setCustomers([...customers, newCustomer])
-    setForm({ name: "", phone: "", vehicle: "" })
-    setShowForm(false)
-  }
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Customers</h1>
@@ -56,7 +67,6 @@ function Customers() {
         </button>
       </div>
 
-      {/* Add Form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h2 className="text-base font-semibold text-gray-700 mb-4">Add New Customer</h2>
@@ -74,23 +84,12 @@ function Customers() {
             ))}
           </div>
           <div className="flex gap-3 mt-4">
-            <button
-              onClick={handleAdd}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200"
-            >
-              Cancel
-            </button>
+            <button onClick={handleAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Save</button>
+            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
           </div>
         </div>
       )}
 
-      {/* Search */}
       <input
         type="text"
         placeholder="Search by name, phone or vehicle..."
@@ -99,52 +98,54 @@ function Customers() {
         className="w-full md:w-80 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 
-      {/* Two column layout — list + detail */}
       <div className="flex gap-4">
-
-        {/* Customer List */}
         <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-left">
-              <tr>
-                <th className="px-4 py-3">#</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Phone</th>
-                <th className="px-4 py-3">Vehicle</th>
-                <th className="px-4 py-3">Tyres Bought</th>
-                <th className="px-4 py-3">Last Visit</th>
-                <th className="px-4 py-3">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-400">{c.id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.phone}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.vehicle}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.tyresBought}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.lastVisit}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => setSelected(c)}
-                      className="text-blue-600 text-xs font-medium hover:underline"
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+          {loading ? (
+            <p className="text-center py-10 text-gray-400">Loading...</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-left">
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-gray-400">No customers found</td>
+                  <th className="px-4 py-3">#</th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Phone</th>
+                  <th className="px-4 py-3">Vehicle</th>
+                  <th className="px-4 py-3">Action</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((c, index) => (
+                  <tr key={c._id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-400">{index + 1}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.phone}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.vehicle}</td>
+                    <td className="px-4 py-3 flex gap-3">
+                      <button
+                        onClick={() => setSelected(c)}
+                        className="text-blue-600 text-xs font-medium hover:underline"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleDelete(c._id)}
+                        className="text-red-400 text-xs font-medium hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-gray-400">No customers found</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {/* Customer Detail Panel */}
         {selected && (
           <div className="w-72 bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -166,21 +167,12 @@ function Customers() {
                 <span className="text-gray-800 font-medium">{selected.vehicle}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Tyres Bought</span>
-                <span className="text-gray-800 font-medium">{selected.tyresBought}</span>
+                <span className="text-gray-500">Added</span>
+                <span className="text-gray-800">{new Date(selected.createdAt).toLocaleDateString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Last Visit</span>
-                <span className="text-gray-800 font-medium">{selected.lastVisit}</span>
-              </div>
-            </div>
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-2">Purchase History</p>
-              <p className="text-xs text-gray-400">Full history will load from database after backend is connected.</p>
             </div>
           </div>
         )}
-
       </div>
     </div>
   )
